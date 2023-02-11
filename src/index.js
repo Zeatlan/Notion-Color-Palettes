@@ -20,6 +20,7 @@ async function main() {
     }
 }
 
+// INFO Search for palettes
 async function searchForPalettes() {
     const query = await notion.databases.query({
         database_id: DATABASE_ID,
@@ -42,7 +43,41 @@ async function searchForPalettes() {
     });
 
     if(query.results.length > 0){
-        console.log(query.results[0].properties.Name.title[0].plain_text);
+        for(page of query.results) {
+            handleNotionPage(page);
+        }
+    }
+}
+
+// INFO Update the notion page (Name and parameters)
+async function handleNotionPage(page) {
+    const initialPageName = page.properties.Name.title[0].plain_text;
+
+    // Get array of colors and name
+    // {{ Moss | #fff | #000 | #AAA | #BBB }} => [ 'Moss', '#fff', '#000', '#AAA', '#BBB' ]
+    let colors = initialPageName.replace("{{", "").replace("}}", "").split('|');
+    colors = colors.map(el => el.trim());
+
+    const pageName = colors[0]; // The first index is always the name of the palette
+    colors.shift();
+
+    try {
+        await notion.pages.update({
+            page_id: page.id,
+            properties: {
+                Name: {
+                    title: [
+                        {
+                            text: {
+                                content: pageName
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+    }catch(error){
+        console.error(`An error occurred while trying to update the page. The id page was : ${page.id}.`);
     }
 }
 
