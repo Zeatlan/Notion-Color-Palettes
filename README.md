@@ -1,3 +1,5 @@
+![preview](preview-header.png)
+
 # Notion Color Palettes
 
 Notion Color Palettes is a project that allows you to visually generate a color palette and store it in a Notion database.
@@ -18,6 +20,8 @@ NOTION_DATABASE_ID=<your-database-id>
 4. Run the command `npm run start` in your terminal to start the application.
 
 And that's it, your color palette is now generated and stored in your Notion database.
+
+**Note** : Name structure is `{{ Palette Name | Color 1 | Color 2 | Color 3 | ... }}`
 
 ## Prerequisites
 
