@@ -149,11 +149,7 @@ function generatePrompt(usecase, colors, pageName) {
 
         if(usecase === 'noText') 
         {
-            let customName = pageName;
-            for(let j = 0; j < (MAX_LENGTH_PAGE - pageName.length); j++) {
-                customName += "a";
-            }
-            prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${colors[i]}}{${customName}}}\\\\`;
+            prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${colors[i]}}{${"o".repeat(MAX_LENGTH_PAGE)}}}\\\\`;
         }
 
 
