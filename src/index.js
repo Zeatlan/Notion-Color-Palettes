@@ -63,7 +63,7 @@ async function handleNotionPage(page) {
     colors.shift();
 
     try {
-        const updatedPage = await notion.pages.update({
+        await notion.pages.update({
             page_id: page.id,
             properties: {
                 Name: {
@@ -78,7 +78,7 @@ async function handleNotionPage(page) {
             }
         });
 
-        generatePalette(updatedPage, colors, pageName);
+        generatePalette(page, colors, pageName);
     }catch(error){
         console.error(`An error occurred while trying to update the page. The id page was : ${page.id}.`);
     }
@@ -126,15 +126,43 @@ async function generatePalette(page, colors, pageName) {
                     ],
                 },
             },
+            {
+                object: 'block',
+                type: 'heading_1',
+                heading_1: {
+                    rich_text: [
+                        {
+                            text: { content: "Copy Paste Hexadécimal" },
+                        }
+                    ],
+                }
+            }
         ],
     });
 
+    let bulletsProperties = [];
+
+    for(let color of colors) {
+        bulletsProperties.push({
+            object: 'block',
+            type: 'bulleted_list_item',
+            bulleted_list_item: {
+                rich_text: [
+                    {
+                        text: { content: color },
+                    }
+                ]
+            }
+        });
+    }
+
+    await appendBullet(page, bulletsProperties)
     console.log(`✅ Palette [${pageName}] has been generated.`);
 } 
 
 function generatePrompt(usecase, colors, pageName) {
     let prompt = "";
-    if(usecase !== 'noText') prompt += "\\begin{array}{c}\\vcenter{";
+    if(usecase === 'front') prompt += "\\begin{array}{c}\\vcenter{";
     prompt += "\\huge";
 
     for(let i = 0; i < colors.length; i++) {
@@ -145,7 +173,11 @@ function generatePrompt(usecase, colors, pageName) {
 
         if(usecase === 'front') prompt += `\\color{${colors[i]}}{${pageName}}`;
 
-        if(usecase === 'back') prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${nextColor}}{${pageName}}}`;
+        if(usecase === 'back') {
+            colorHexa = colors[i].split("#");
+            colorHexa[0] = "#";
+            prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${nextColor}}{\\${colorHexa[0]}${colorHexa[1]}}}\\\\`;
+        }
 
         if(usecase === 'noText') 
         {
@@ -153,12 +185,19 @@ function generatePrompt(usecase, colors, pageName) {
         }
 
 
-        if(nextColor !== undefined && usecase !== "noText") prompt += `\\thickspace`;
+        if(nextColor !== undefined && usecase === "front") prompt += `\\thickspace`;
     }
     
-    if(usecase !== 'noText') prompt += "}\\end{array}";
+    if(usecase === 'front') prompt += "}\\end{array}";
 
     return prompt;
+}
+
+async function appendBullet(page, bulletsProperties) {
+    await notion.blocks.children.append({
+        block_id: page.id,
+        children: bulletsProperties
+    });
 }
 
 main();
