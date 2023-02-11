@@ -6,6 +6,7 @@ const notion = new Client({
 });
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
+const MAX_LENGTH_PAGE = 42;
 
 async function main() {
     try {
@@ -85,8 +86,9 @@ async function handleNotionPage(page) {
 
 async function generatePalette(page, colors, pageName) {
 
-    const promptFcolor = generatePrompt(false, colors, pageName);
-    const promptBcolor = generatePrompt(true, colors, pageName);
+    const colorBlocks = generatePrompt('noText', colors, pageName);
+    const promptBcolor = generatePrompt('back', colors, pageName);
+    const promptFcolor = generatePrompt('front', colors, pageName);
 
     await notion.blocks.children.append({
         block_id: page.id,
@@ -97,7 +99,7 @@ async function generatePalette(page, colors, pageName) {
                 paragraph: {
                     rich_text: [
                         {
-                            equation: { expression: promptFcolor },
+                            equation: { expression: colorBlocks },
                         }
                     ],
                 },
@@ -112,28 +114,53 @@ async function generatePalette(page, colors, pageName) {
                         }
                     ],
                 },
-            }
+            },
+            {
+                object: 'block',
+                type: 'paragraph',
+                paragraph: {
+                    rich_text: [
+                        {
+                            equation: { expression: promptFcolor },
+                        }
+                    ],
+                },
+            },
         ],
     });
 
     console.log(`✅ Palette [${pageName}] has been generated.`);
 } 
 
-function generatePrompt(hasBackground, colors, pageName) {
-    let prompt = "\\begin{array}{c}\\vcenter{\\huge";
+function generatePrompt(usecase, colors, pageName) {
+    let prompt = "";
+    if(usecase !== 'noText') prompt += "\\begin{array}{c}\\vcenter{";
+    prompt += "\\huge";
 
     for(let i = 0; i < colors.length; i++) {
         let nextColor = colors[i + 1];
 
-        if(!hasBackground) prompt += `\\color{${colors[i]}}{${pageName}}`;
         
         if(nextColor === undefined) nextColor = colors[0];
 
-        if(hasBackground) prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${nextColor}}{${pageName}}}`;
-        if(nextColor !== undefined) prompt += `\\thickspace`;
+        if(usecase === 'front') prompt += `\\color{${colors[i]}}{${pageName}}`;
+
+        if(usecase === 'back') prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${nextColor}}{${pageName}}}`;
+
+        if(usecase === 'noText') 
+        {
+            let customName = pageName;
+            for(let j = 0; j < (MAX_LENGTH_PAGE - pageName.length); j++) {
+                customName += "a";
+            }
+            prompt += `\\fcolorbox{${colors[i]}}{${colors[i]}}{\\color{${colors[i]}}{${customName}}}\\\\`;
+        }
+
+
+        if(nextColor !== undefined && usecase !== "noText") prompt += `\\thickspace`;
     }
     
-    prompt += "}\\end{array}";
+    if(usecase !== 'noText') prompt += "}\\end{array}";
 
     return prompt;
 }
