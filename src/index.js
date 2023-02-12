@@ -7,6 +7,7 @@ const notion = new Client({
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const MAX_LENGTH_PAGE = 42;
+const memoName = {};
 
 async function main() {
     try {
@@ -61,6 +62,7 @@ async function handleNotionPage(page) {
     colors = colors.map(el => el.trim());
 
     const pageName = colors[0]; // The first index is always the name of the palette
+    memoName[pageName] = initialPageName; // Keep in memory (In case of error)
     colors.shift();
 
     // Verify if all colors are hexadecimal
@@ -76,24 +78,12 @@ async function handleNotionPage(page) {
     if(!isCorrectFormat) return;
 
     try {
-        await notion.pages.update({
-            page_id: page.id,
-            properties: {
-                Name: {
-                    title: [
-                        {
-                            text: {
-                                content: pageName
-                            }
-                        }
-                    ]
-                }
-            }
-        });
+        await renamePage(page, pageName);
 
         generatePalette(page, colors, pageName);
     }catch(error){
         console.error(`An error occurred while trying to update the page. The id page was : ${page.id}.`);
+        undoNaming(page);
     }
 }
 
@@ -103,55 +93,60 @@ async function generatePalette(page, colors, pageName) {
     const promptBcolor = generatePrompt('back', colors, pageName);
     const promptFcolor = generatePrompt('front', colors, pageName);
 
-    await notion.blocks.children.append({
-        block_id: page.id,
-        children: [
-            {
-                object: 'block',
-                type: 'paragraph',
-                paragraph: {
-                    rich_text: [
-                        {
-                            equation: { expression: colorBlocks },
-                        }
-                    ],
+    try {
+        await notion.blocks.children.append({
+            block_id: page.id,
+            children: [
+                {
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                equation: { expression: colorBlocks },
+                            }
+                        ],
+                    },
                 },
-            },
-            {
-                object: 'block',
-                type: 'paragraph',
-                paragraph: {
-                    rich_text: [
-                        {
-                            equation: { expression: promptBcolor },
-                        }
-                    ],
+                {
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                equation: { expression: promptBcolor },
+                            }
+                        ],
+                    },
                 },
-            },
-            {
-                object: 'block',
-                type: 'paragraph',
-                paragraph: {
-                    rich_text: [
-                        {
-                            equation: { expression: promptFcolor },
-                        }
-                    ],
+                {
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                equation: { expression: promptFcolor },
+                            }
+                        ],
+                    },
                 },
-            },
-            {
-                object: 'block',
-                type: 'heading_1',
-                heading_1: {
-                    rich_text: [
-                        {
-                            text: { content: "Copy Paste Hexadécimal" },
-                        }
-                    ],
+                {
+                    object: 'block',
+                    type: 'heading_1',
+                    heading_1: {
+                        rich_text: [
+                            {
+                                text: { content: "Copy Paste Hexadécimal" },
+                            }
+                        ],
+                    }
                 }
-            }
-        ],
-    });
+            ],
+        });
+    }catch(e) {
+        console.error(`An error occurred while putting blocks children : ${e.message}`);
+        undoNaming(page);
+    }
 
     let bulletsProperties = [];
 
@@ -207,16 +202,46 @@ function generatePrompt(usecase, colors, pageName) {
 }
 
 async function appendBullet(page, bulletsProperties) {
-    await notion.blocks.children.append({
-        block_id: page.id,
-        children: bulletsProperties
-    });
+    try {
+        await notion.blocks.children.append({
+            block_id: page.id,
+            children: bulletsProperties
+        });
+    }catch(e) {
+        console.error(`An error occurred while putting bullet points : ${e.message}`);
+        undoNaming(page);
+    }
 }
 
 function validateHexadecimal(color) {
     if(!color.match(/^#([A-Fa-f0-9]{3}){1,2}$/i)) {
         throw new Error(`Invalid hexadecimal parameter : ${color}`);
     }
+}
+
+async function undoNaming(page) {
+    let promises = [];
+
+    for(const key in memoName) {
+        if(memoName.hasOwnProperty(key)) {
+            promises.push(await renamePage(page, memoName[key]));
+        }
+    }
+
+    Promise.all(promises).then(() => {
+        console.log(`Pages name resetted.`);
+    })
+}
+
+async function renamePage(page, newName) {
+    await notion.pages.update({
+        page_id: page.id,
+        properties: {
+            Name: {
+                title: [{ text: { content: newName } }]
+            }
+        }
+    })
 }
 
 main();
