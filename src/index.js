@@ -52,6 +52,7 @@ async function searchForPalettes() {
 
 // INFO Update the notion page (Name and parameters)
 async function handleNotionPage(page) {
+    let isCorrectFormat = true;
     const initialPageName = page.properties.Name.title[0].plain_text;
 
     // Get array of colors and name
@@ -61,6 +62,18 @@ async function handleNotionPage(page) {
 
     const pageName = colors[0]; // The first index is always the name of the palette
     colors.shift();
+
+    // Verify if all colors are hexadecimal
+    for(let color of colors) {
+        try {
+            validateHexadecimal(color);
+        } catch(error) {
+            console.error(`❌ ${pageName} : ${error.message}`);
+            isCorrectFormat = false;
+        }
+    }
+
+    if(!isCorrectFormat) return;
 
     try {
         await notion.pages.update({
@@ -198,6 +211,12 @@ async function appendBullet(page, bulletsProperties) {
         block_id: page.id,
         children: bulletsProperties
     });
+}
+
+function validateHexadecimal(color) {
+    if(!color.match(/^#([A-Fa-f0-9]{3}){1,2}$/i)) {
+        throw new Error(`Invalid hexadecimal parameter : ${color}`);
+    }
 }
 
 main();
